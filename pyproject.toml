@@ -1,8 +1,12 @@
 [project]
-name = "ytmusicapi"
-description = "Unofficial API for YouTube Music"
+name = "ytmusicapi-freezeable"
+description = "Unofficial API for YouTube Music, a freezable fork"
 requires-python = ">=3.8"
-authors=[{name = "sigma67", email= "ytmusicapi@gmail.com"}]
+authors=[
+    {name = "sigma67", email= "ytmusicapi@gmail.com"},
+    {name = "Sal Faris", email="9nplnyrz@duck.com"},
+]
+
 license={file="LICENSE"}
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -17,16 +21,16 @@ dynamic = ["version", "readme"]
 ytmusicapi = "ytmusicapi.setup:main"
 
 [project.urls]
-homepage = "https://github.com/sigma67/ytmusicapi"
+homepage = "https://github.com/The-Sal/ytmusicapi-freezable"
 documentation = "https://ytmusicapi.readthedocs.io"
-repository = "https://github.com/sigma67/ytmusicapi"
+repository = "https://github.com/The-Sal/ytmusicapi-freezable"
 
 [build-system]
 requires = ["setuptools>=65", "setuptools_scm[toml]>=7"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-readme = {file = ["README.rst"]}
+readme = {file = ["README.md"]}
 
 [tool.setuptools_scm]
 
@@ -40,10 +44,7 @@ include-package-data=false
 # DEVELOPMENT #
 ###############
 
-[tool.pytest.ini_options]
-python_functions = "test_*"
-testpaths = ["tests"]
-addopts = "--verbose --cov"
+
 
 [tool.coverage.run]
 source = ["ytmusicapi"]
@@ -68,14 +69,3 @@ files = [
 ]
 mypy_path = "ytmusicapi"
 
-[tool.pdm.dev-dependencies]
-dev = [
-    "coverage>=7.4.0",
-    'sphinx<7',
-    'sphinx-rtd-theme',
-    "ruff>=0.1.9",
-    "mypy>=1.8.0",
-    "pytest>=7.4.4",
-    "pytest-cov>=4.1.0",
-    "types-requests>=2.31.0.20240218",
-]

@@ -197,88 +197,6 @@ class LibraryMixin(MixinProtocol):
             response, lambda additionalParams: self._send_request(endpoint, body, additionalParams), limit
         )
 
-    def get_library_podcasts(self, limit: int = 25, order: Optional[str] = None) -> List[Dict]:
-        """
-        Get podcasts the user has added to the library
-
-        :param limit: Number of podcasts to return
-        :param order: Order of podcasts to return. Allowed values: 'a_to_z', 'z_to_a', 'recently_added'. Default: Default order.
-        :return: List of podcasts. New Episodes playlist is the first podcast returned, but only if subscribed to relevant podcasts.
-
-        Example::
-
-            [
-                {
-                    "title": "New Episodes",
-                    "channel":
-                    {
-                        "id": null,
-                        "name": "Auto playlist"
-                    },
-                    "browseId": "VLRDPN",
-                    "podcastId": "RDPN",
-                    "thumbnails": [...]
-                },
-                {
-                    "title": "5 Minuten Harry Podcast",
-                    "channel":
-                    {
-                        "id": "UCDIDXF4WM1qQzerrxeEfSdA",
-                        "name": "coldmirror"
-                    },
-                    "browseId": "MPSPPLDvBqWb1UAGeEt9n6vFH_zdGw65Obf3sH",
-                    "podcastId": "PLDvBqWb1UAGeEt9n6vFH_zdGw65Obf3sH",
-                    "thumbnails": [...]
-                }
-            ]
-        """
-        self._check_auth()
-        body = {"browseId": "FEmusic_library_non_music_audio_list"}
-        validate_order_parameter(order)
-        if order is not None:
-            body["params"] = prepare_order_params(order)
-        endpoint = "browse"
-        response = self._send_request(endpoint, body)
-        return parse_library_podcasts(
-            response, lambda additionalParams: self._send_request(endpoint, body, additionalParams), limit
-        )
-
-    def get_library_channels(self, limit: int = 25, order: Optional[str] = None) -> List[Dict]:
-        """
-        Get channels the user has added to the library
-
-        :param limit: Number of channels to return
-        :param order: Order of channels to return. Allowed values: 'a_to_z', 'z_to_a', 'recently_added'. Default: Default order.
-        :return: List of channels.
-
-        Example::
-
-            [
-                {
-                    "browseId": "UCRFF8xw5dg9mL4r5ryFOtKw",
-                    "artist": "Jumpers Jump",
-                    "subscribers": "1.54M",
-                    "thumbnails": [...]
-                },
-                {
-                    "browseId": "UCQ3f2_sO3NJyDkuCxCNSOVA",
-                    "artist": "BROWN BAG",
-                    "subscribers": "74.2K",
-                    "thumbnails": [...]
-                }
-            ]
-        """
-        self._check_auth()
-        body = {"browseId": "FEmusic_library_non_music_audio_channels_list"}
-        validate_order_parameter(order)
-        if order is not None:
-            body["params"] = prepare_order_params(order)
-        endpoint = "browse"
-        response = self._send_request(endpoint, body)
-        return parse_library_artists(
-            response, lambda additionalParams: self._send_request(endpoint, body, additionalParams), limit
-        )
-
     def get_history(self) -> List[Dict]:
         """
         Gets your play history in reverse chronological order
@@ -294,11 +212,11 @@ class LibraryMixin(MixinProtocol):
         results = nav(response, SINGLE_COLUMN_TAB + SECTION_LIST)
         songs = []
         for content in results:
-            data = nav(content, [*MUSIC_SHELF, "contents"], True)
+            data = nav(content, MUSIC_SHELF + ["contents"], True)
             if not data:
-                error = nav(content, ["musicNotifierShelfRenderer", *TITLE], True)
+                error = nav(content, ["musicNotifierShelfRenderer"] + TITLE, True)
                 raise Exception(error)
-            menu_entries = [[-1, *MENU_SERVICE, *FEEDBACK_TOKEN]]
+            menu_entries = [[-1] + MENU_SERVICE + FEEDBACK_TOKEN]
             songlist = parse_playlist_items(data, menu_entries)
             for song in songlist:
                 song["played"] = nav(content["musicShelfRenderer"], TITLE_TEXT)
@@ -316,7 +234,7 @@ class LibraryMixin(MixinProtocol):
         """
         url = song["playbackTracking"]["videostatsPlaybackUrl"]["baseUrl"]
         CPNA = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
-        cpn = "".join(CPNA[randint(0, 256) & 63] for _ in range(0, 16))
+        cpn = "".join((CPNA[randint(0, 256) & 63] for _ in range(0, 16)))
         params = {"ver": 2, "c": "WEB_REMIX", "cpn": cpn}
         return self._send_get_request(url, params)
 
@@ -406,45 +324,3 @@ class LibraryMixin(MixinProtocol):
         body = {"channelIds": channelIds}
         endpoint = "subscription/unsubscribe"
         return self._send_request(endpoint, body)
-
-    def get_account_info(self) -> Dict:
-        """
-        Gets information about the currently authenticated user's account.
-
-        :return: Dictionary with user's account name, channel handle, and URL of their account photo.
-
-        Example::
-
-            {
-                "accountName": "Sample User",
-                "channelHandle": "@SampleUser
-                "accountPhotoUrl": "https://yt3.ggpht.com/sample-user-photo"
-            }
-        """
-        self._check_auth()
-        endpoint = "account/account_menu"
-        response = self._send_request(endpoint, {})
-
-        ACCOUNT_INFO = [
-            "actions",
-            0,
-            "openPopupAction",
-            "popup",
-            "multiPageMenuRenderer",
-            "header",
-            "activeAccountHeaderRenderer",
-        ]
-        ACCOUNT_RUNS_TEXT = ["runs", 0, "text"]
-        ACCOUNT_NAME = [*ACCOUNT_INFO, "accountName", *ACCOUNT_RUNS_TEXT]
-        ACCOUNT_CHANNEL_HANDLE = [*ACCOUNT_INFO, "channelHandle", *ACCOUNT_RUNS_TEXT]
-        ACCOUNT_PHOTO_URL = [*ACCOUNT_INFO, "accountPhoto", "thumbnails", 0, "url"]
-
-        account_name = nav(response, ACCOUNT_NAME)
-        channel_handle = nav(response, ACCOUNT_CHANNEL_HANDLE)
-        account_photo_url = nav(response, ACCOUNT_PHOTO_URL)
-
-        return {
-            "accountName": account_name,
-            "channelHandle": channel_handle,
-            "accountPhotoUrl": account_photo_url,
-        }

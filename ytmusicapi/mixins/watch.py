@@ -147,19 +147,13 @@ class WatchMixin(MixinProtocol):
         related_browse_id = get_tab_browse_id(watchNextRenderer, 2)
 
         results = nav(
-            watchNextRenderer, [*TAB_CONTENT, "musicQueueRenderer", "content", "playlistPanelRenderer"], True
+            watchNextRenderer, TAB_CONTENT + ["musicQueueRenderer", "content", "playlistPanelRenderer"]
         )
-        if not results:
-            msg = "No content returned by the server."
-            if playlistId:
-                msg += f"\nEnsure you have access to {playlistId} - a private playlist may cause this."
-            raise Exception(msg)
-
         playlist = next(
             filter(
                 bool,
                 map(
-                    lambda x: nav(x, ["playlistPanelVideoRenderer", *NAVIGATION_PLAYLIST_ID], True),
+                    lambda x: nav(x, ["playlistPanelVideoRenderer"] + NAVIGATION_PLAYLIST_ID, True),
                     results["contents"],
                 ),
             ),

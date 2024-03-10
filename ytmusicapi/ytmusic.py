@@ -28,7 +28,6 @@ from ytmusicapi.mixins.browsing import BrowsingMixin
 from ytmusicapi.mixins.explore import ExploreMixin
 from ytmusicapi.mixins.library import LibraryMixin
 from ytmusicapi.mixins.playlists import PlaylistsMixin
-from ytmusicapi.mixins.podcasts import PodcastsMixin
 from ytmusicapi.mixins.search import SearchMixin
 from ytmusicapi.mixins.uploads import UploadsMixin
 from ytmusicapi.mixins.watch import WatchMixin
@@ -39,14 +38,17 @@ from .auth.oauth.token import Token
 from .auth.types import AuthType
 
 
-class YTMusicBase:
+from .freeze_help import freezer_log_print
+from .freeze_help import LocalesHelper
+
+
+class YTMusicBase(LocalesHelper):
     def __init__(
         self,
         auth: Optional[Union[str, Dict]] = None,
         user: Optional[str] = None,
         requests_session=True,
         proxies: Optional[Dict[str, str]] = None,
-        language: str = "en",
         location: str = "",
         oauth_credentials: Optional[OAuthCredentials] = None,
     ):
@@ -78,15 +80,19 @@ class YTMusicBase:
             .. _requests: https://requests.readthedocs.io/
             .. _format: https://requests.readthedocs.io/en/master/user/advanced/#proxies
 
-        :param language: Optional. Can be used to change the language of returned data.
-            English will be used by default. Available languages can be checked in
-            the ytmusicapi/locales directory.
+
         :param location: Optional. Can be used to change the location of the user.
             No location will be set by default. This means it is determined by the server.
             Available languages can be checked in the FAQ.
         :param oauth_credentials: Optional. Used to specify a different oauth client to be
             used for authentication flow.
         """
+        freezer_log_print('SECTION 0 - YTMusicBase.__init__')
+
+        super().__init__()
+        language: str = "en"
+
+        freezer_log_print('SECTION A - YTMusicBase.__init__')
 
         self._base_headers = None  #: for authless initializing requests during OAuth flow
         self._headers = None  #: cache formed headers including auth
@@ -112,6 +118,8 @@ class YTMusicBase:
                 self._session.request = partial(self._session.request, timeout=30)  # type: ignore[method-assign]
             else:  # Use the Requests API module as a "session".
                 self._session = requests.api  # type: ignore[assignment]
+
+        freezer_log_print('SECTION B - YTMusicBase.__init__')
 
         # see google cookie docs: https://policies.google.com/technologies/cookies
         # value from https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/youtube.py#L502
@@ -140,6 +148,8 @@ class YTMusicBase:
                 )
                 self.auth_type = AuthType.OAUTH_CUSTOM_CLIENT if oauth_credentials else AuthType.OAUTH_DEFAULT
 
+        freezer_log_print('SECTION C - YTMusicBase.__init__')
+
         # prepare context
         self.context = initialize_context()
 
@@ -160,9 +170,14 @@ class YTMusicBase:
             with suppress(locale.Error):
                 locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
 
-        locale_dir = os.path.abspath(os.path.dirname(__file__)) + os.sep + "locales"
-        self.lang = gettext.translation("base", localedir=locale_dir, languages=[language])
+        locale_dir = self.path_of_locals
+        try:
+            self.lang = gettext.translation("base", localedir=locale_dir, languages=[language])
+        except FileNotFoundError:
+            raise FileNotFoundError('Umm... How is this possible... Local Dir: ' + locale_dir)
         self.parser = Parser(self.lang)
+
+        freezer_log_print('SECTION D - YTMusicBase.__init__')
 
         if user:
             self.context["context"]["user"]["onBehalfOfUser"] = user
@@ -174,6 +189,7 @@ class YTMusicBase:
             elif auth_headers.startswith("Bearer"):
                 self.auth_type = AuthType.OAUTH_CUSTOM_FULL
 
+
         # sapsid, origin, and params all set once during init
         self.params = YTM_PARAMS
         if self.auth_type == AuthType.BROWSER:
@@ -184,6 +200,10 @@ class YTMusicBase:
                 self.origin = self.base_headers.get("origin", self.base_headers.get("x-origin"))
             except KeyError:
                 raise Exception("Your cookie is missing the required value __Secure-3PAPISID")
+
+        freezer_log_print('SECTION E - YTMusicBase.__init__')
+
+
 
     @property
     def base_headers(self):
@@ -212,9 +232,7 @@ class YTMusicBase:
         if self.auth_type == AuthType.BROWSER:
             self._headers["authorization"] = get_authorization(self.sapisid + " " + self.origin)
 
-        # Do not set custom headers when using OAUTH_CUSTOM_FULL
-        # Full headers are provided by the downstream client in this scenario.
-        elif self.auth_type in [x for x in AuthType.oauth_types() if x != AuthType.OAUTH_CUSTOM_FULL]:
+        elif self.auth_type in AuthType.oauth_types():
             self._headers["authorization"] = self._token.as_auth()
             self._headers["X-Goog-Request-Time"] = str(int(time.time()))
 
@@ -271,7 +289,6 @@ class YTMusic(
     ExploreMixin,
     LibraryMixin,
     PlaylistsMixin,
-    PodcastsMixin,
     UploadsMixin,
 ):
     """

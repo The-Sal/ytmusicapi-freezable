@@ -10,9 +10,7 @@ def parse_album_header(response):
         "title": nav(header, TITLE_TEXT),
         "type": nav(header, SUBTITLE),
         "thumbnails": nav(header, THUMBNAIL_CROPPED),
-        "isExplicit": nav(header, SUBTITLE_BADGE_LABEL, True) is not None,
     }
-
     if "description" in header:
         album["description"] = header["description"]["runs"][0]["text"]
 
@@ -28,9 +26,9 @@ def parse_album_header(response):
     # add to library/uploaded
     menu = nav(header, MENU)
     toplevel = menu["topLevelButtons"]
-    album["audioPlaylistId"] = nav(toplevel, [0, "buttonRenderer", *NAVIGATION_WATCH_PLAYLIST_ID], True)
+    album["audioPlaylistId"] = nav(toplevel, [0, "buttonRenderer"] + NAVIGATION_WATCH_PLAYLIST_ID, True)
     if not album["audioPlaylistId"]:
-        album["audioPlaylistId"] = nav(toplevel, [0, "buttonRenderer", *NAVIGATION_PLAYLIST_ID], True)
+        album["audioPlaylistId"] = nav(toplevel, [0, "buttonRenderer"] + NAVIGATION_PLAYLIST_ID, True)
     service = nav(toplevel, [1, "buttonRenderer", "defaultServiceEndpoint"], True)
     if service:
         album["likeStatus"] = parse_like_status(service)

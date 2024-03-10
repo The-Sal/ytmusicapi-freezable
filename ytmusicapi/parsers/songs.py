@@ -53,8 +53,7 @@ def parse_song_runs(runs):
 
 def parse_song_album(data, index):
     flex_item = get_flex_column_item(data, index)
-    browse_id = nav(flex_item, TEXT_RUN + NAVIGATION_BROWSE_ID, True)
-    return None if not flex_item else {"name": get_item_text(data, index), "id": browse_id}
+    return None if not flex_item else {"name": get_item_text(data, index), "id": get_browse_id(flex_item, 0)}
 
 
 def parse_song_library_status(item) -> bool:
@@ -67,8 +66,8 @@ def parse_song_library_status(item) -> bool:
 def parse_song_menu_tokens(item):
     toggle_menu = item[TOGGLE_MENU]
 
-    library_add_token = nav(toggle_menu, ["defaultServiceEndpoint", *FEEDBACK_TOKEN], True)
-    library_remove_token = nav(toggle_menu, ["toggledServiceEndpoint", *FEEDBACK_TOKEN], True)
+    library_add_token = nav(toggle_menu, ["defaultServiceEndpoint"] + FEEDBACK_TOKEN, True)
+    library_remove_token = nav(toggle_menu, ["toggledServiceEndpoint"] + FEEDBACK_TOKEN, True)
 
     in_library = parse_song_library_status(item)
     if in_library:

@@ -1,15 +1,6 @@
-from gettext import gettext as _
 from typing import Any, Dict, List
 
-from ytmusicapi.navigation import (
-    CAROUSEL,
-    CAROUSEL_TITLE,
-    MMRIR,
-    MTRIR,
-    NAVIGATION_BROWSE,
-    NAVIGATION_BROWSE_ID,
-    nav,
-)
+from ytmusicapi.navigation import CAROUSEL, CAROUSEL_TITLE, NAVIGATION_BROWSE_ID, nav
 from ytmusicapi.parsers._utils import i18n
 from ytmusicapi.parsers.browsing import (
     parse_album,
@@ -19,7 +10,6 @@ from ytmusicapi.parsers.browsing import (
     parse_single,
     parse_video,
 )
-from ytmusicapi.parsers.podcasts import parse_episode, parse_podcast
 
 
 class Parser:
@@ -40,35 +30,27 @@ class Parser:
         ]
 
     @i18n
-    def parse_channel_contents(self, results: List) -> Dict:
-        # type: ignore[name-defined]
-        categories = [
-            ("albums", _("albums"), parse_album, MTRIR),
-            ("singles", _("singles"), parse_single, MTRIR),
-            ("videos", _("videos"), parse_video, MTRIR),
-            ("playlists", _("playlists"), parse_playlist, MTRIR),
-            ("related", _("related"), parse_related_artist, MTRIR),
-            ("episodes", _("episodes"), parse_episode, MMRIR),
-            ("podcasts", _("podcasts"), parse_podcast, MTRIR),
-        ]
+    def parse_artist_contents(self, results: List) -> Dict:
+        categories = ["albums", "singles", "videos", "playlists", "related"]
+        categories_local = [_("albums"), _("singles"), _("videos"), _("playlists"), _("related")]  # type: ignore[name-defined]
+        categories_parser = [parse_album, parse_single, parse_video, parse_playlist, parse_related_artist]
         artist: Dict[str, Any] = {}
-        for category, category_local, category_parser, category_key in categories:
+        for i, category in enumerate(categories):
             data = [
                 r["musicCarouselShelfRenderer"]
                 for r in results
                 if "musicCarouselShelfRenderer" in r
-                and nav(r, CAROUSEL + CAROUSEL_TITLE)["text"].lower() == category_local
+                and nav(r, CAROUSEL + CAROUSEL_TITLE)["text"].lower() == categories_local[i]
             ]
             if len(data) > 0:
                 artist[category] = {"browseId": None, "results": []}
                 if "navigationEndpoint" in nav(data[0], CAROUSEL_TITLE):
                     artist[category]["browseId"] = nav(data[0], CAROUSEL_TITLE + NAVIGATION_BROWSE_ID)
-                    artist[category]["params"] = nav(
-                        data[0], CAROUSEL_TITLE + NAVIGATION_BROWSE + ["params"], True
-                    )
+                    if category in ["albums", "singles", "playlists"]:
+                        artist[category]["params"] = nav(data[0], CAROUSEL_TITLE)["navigationEndpoint"][
+                            "browseEndpoint"
+                        ]["params"]
 
-                artist[category]["results"] = parse_content_list(
-                    data[0]["contents"], category_parser, key=category_key
-                )
+                artist[category]["results"] = parse_content_list(data[0]["contents"], categories_parser[i])
 
         return artist

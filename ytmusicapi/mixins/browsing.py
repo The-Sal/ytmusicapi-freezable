@@ -1,11 +1,7 @@
 import re
-import warnings
 from typing import Any, Dict, List, Optional
 
-from ytmusicapi.continuations import (
-    get_continuations,
-    get_reloadable_continuation_params,
-)
+from ytmusicapi.continuations import get_continuations
 from ytmusicapi.helpers import YTM_DOMAIN, sum_total_duration
 from ytmusicapi.parsers.albums import parse_album_header
 from ytmusicapi.parsers.browsing import parse_album, parse_content_list, parse_mixed_content, parse_playlist
@@ -111,7 +107,7 @@ class BrowsingMixin(MixinProtocol):
         home = []
         home.extend(parse_mixed_content(results))
 
-        section_list = nav(response, [*SINGLE_COLUMN_TAB, "sectionListRenderer"])
+        section_list = nav(response, SINGLE_COLUMN_TAB + ["sectionListRenderer"])
         if "continuations" in section_list:
             request_func = lambda additionalParams: self._send_request(endpoint, body, additionalParams)
 
@@ -238,10 +234,10 @@ class BrowsingMixin(MixinProtocol):
         subscription_button = header["subscriptionButton"]["subscribeButtonRenderer"]
         artist["channelId"] = subscription_button["channelId"]
         artist["shuffleId"] = nav(
-            header, ["playButton", "buttonRenderer", *NAVIGATION_WATCH_PLAYLIST_ID], True
+            header, ["playButton", "buttonRenderer"] + NAVIGATION_WATCH_PLAYLIST_ID, True
         )
         artist["radioId"] = nav(
-            header, ["startRadioButton", "buttonRenderer", *NAVIGATION_WATCH_PLAYLIST_ID], True
+            header, ["startRadioButton", "buttonRenderer"] + NAVIGATION_WATCH_PLAYLIST_ID, True
         )
         artist["subscribers"] = nav(subscription_button, ["subscriberCountText", "runs", 0, "text"], True)
         artist["subscribed"] = subscription_button["subscribed"]
@@ -253,19 +249,15 @@ class BrowsingMixin(MixinProtocol):
                 artist["songs"]["browseId"] = nav(musicShelf, TITLE + NAVIGATION_BROWSE_ID)
             artist["songs"]["results"] = parse_playlist_items(musicShelf["contents"])
 
-        artist.update(self.parser.parse_channel_contents(results))
+        artist.update(self.parser.parse_artist_contents(results))
         return artist
 
-    def get_artist_albums(
-        self, channelId: str, params: str, limit: Optional[int] = 100, order: Optional[str] = None
-    ) -> List[Dict]:
+    def get_artist_albums(self, channelId: str, params: str) -> List[Dict]:
         """
         Get the full list of an artist's albums or singles
 
         :param channelId: browseId of the artist as returned by :py:func:`get_artist`
         :param params: params obtained by :py:func:`get_artist`
-        :param limit: Number of albums to return. `None` retrieves them all. Default: 100
-        :param order: Order of albums to return. Allowed values: 'Recency', 'Popularity', 'Alphabetical order'. Default: Default order.
         :return: List of albums in the format of :py:func:`get_library_albums`,
           except artists key is missing.
 
@@ -273,67 +265,9 @@ class BrowsingMixin(MixinProtocol):
         body = {"browseId": channelId, "params": params}
         endpoint = "browse"
         response = self._send_request(endpoint, body)
-
-        request_func = lambda additionalParams: self._send_request(endpoint, body, additionalParams)
-        parse_func = lambda contents: parse_albums(contents)
-
-        if order:
-            # pick the correct continuation from response depending on the order chosen
-            sort_options = nav(
-                response,
-                SINGLE_COLUMN_TAB
-                + SECTION
-                + HEADER_SIDE
-                + [
-                    "endItems",
-                    0,
-                    "musicSortFilterButtonRenderer",
-                    "menu",
-                    "musicMultiSelectMenuRenderer",
-                    "options",
-                ],
-            )
-            continuation = next(
-                (
-                    nav(
-                        option,
-                        [
-                            *MULTI_SELECT,
-                            "selectedCommand",
-                            "commandExecutorCommand",
-                            "commands",
-                            -1,
-                            "browseSectionListReloadEndpoint",
-                        ],
-                    )
-                    for option in sort_options
-                    if nav(option, MULTI_SELECT + TITLE_TEXT).lower() == order.lower()
-                ),
-                None,
-            )
-            # if a valid order was provided, request continuation and replace original response
-            if continuation:
-                additionalParams = get_reloadable_continuation_params(
-                    {"continuations": [continuation["continuation"]]}
-                )
-                response = request_func(additionalParams)
-                results = nav(response, SECTION_LIST_CONTINUATION + CONTENT)
-            else:
-                raise ValueError(f"Invalid order parameter {order}")
-
-        else:
-            # just use the results from the first request
-            results = nav(response, SINGLE_COLUMN_TAB + SECTION_LIST_ITEM)
-
-        contents = nav(results, GRID_ITEMS, True) or nav(results, CAROUSEL_CONTENTS)
-        albums = parse_albums(contents)
-
-        results = nav(results, GRID, True)
-        if "continuations" in results:
-            remaining_limit = None if limit is None else (limit - len(albums))
-            albums.extend(
-                get_continuations(results, "gridContinuation", remaining_limit, request_func, parse_func)
-            )
+        results = nav(response, SINGLE_COLUMN_TAB + SECTION_LIST_ITEM)
+        results = nav(results, GRID_ITEMS, True) or nav(results, CAROUSEL_CONTENTS)
+        albums = parse_albums(results)
 
         return albums
 
@@ -347,7 +281,7 @@ class BrowsingMixin(MixinProtocol):
         Example::
 
             {
-              "name": "4Tune - No Copyright Music",
+              "name": "4Tune – No Copyright Music",
               "videos": {
                 "browseId": "UC44hbeRoCZVVMVg5z0FfIww",
                 "results": [
@@ -388,9 +322,9 @@ class BrowsingMixin(MixinProtocol):
         endpoint = "browse"
         body = {"browseId": channelId}
         response = self._send_request(endpoint, body)
-        user = {"name": nav(response, [*HEADER_MUSIC_VISUAL, *TITLE_TEXT])}
+        user = {"name": nav(response, ["header", "musicVisualHeaderRenderer"] + TITLE_TEXT)}
         results = nav(response, SINGLE_COLUMN_TAB + SECTION_LIST)
-        user.update(self.parser.parse_channel_contents(results))
+        user.update(self.parser.parse_artist_contents(results))
         return user
 
     def get_user_playlists(self, channelId: str, params: str) -> List[Dict]:
@@ -424,12 +358,7 @@ class BrowsingMixin(MixinProtocol):
         params = {"list": audioPlaylistId}
         response = self._send_get_request(YTM_DOMAIN + "/playlist", params)
 
-        with warnings.catch_warnings():
-            # merge this with statement with catch_warnings on Python>=3.11
-            warnings.simplefilter(action="ignore", category=DeprecationWarning)
-            decoded = response.text.encode("utf8").decode("unicode_escape")
-
-        matches = re.search(r"\"MPRE.+?\"", decoded)
+        matches = re.search(r"\"MPRE.+?\"", response.text.encode("utf8").decode("unicode_escape"))
         browse_id = None
         if matches:
             browse_id = matches.group().strip('"')
@@ -443,7 +372,7 @@ class BrowsingMixin(MixinProtocol):
             returned by :py:func:`search`
         :return: Dictionary with album and track metadata.
 
-        The result is in the following format::
+        Each track is in the following format::
 
             {
               "title": "Revival",
@@ -477,7 +406,6 @@ class BrowsingMixin(MixinProtocol):
                   "isExplicit": true,
                   "duration": "5:03",
                   "duration_seconds": 303,
-                  "trackNumber": 0,
                   "feedbackTokens": {
                     "add": "AB9zfpK...",
                     "remove": "AB9zfpK..."
@@ -496,15 +424,12 @@ class BrowsingMixin(MixinProtocol):
               "duration_seconds": 4657
             }
         """
-        if not browseId or not browseId.startswith("MPRE"):
-            raise Exception("Invalid album browseId provided, must start with MPRE.")
-
         body = {"browseId": browseId}
         endpoint = "browse"
         response = self._send_request(endpoint, body)
         album = parse_album_header(response)
         results = nav(response, SINGLE_COLUMN_TAB + SECTION_LIST_ITEM + MUSIC_SHELF)
-        album["tracks"] = parse_playlist_items(results["contents"], is_album=True)
+        album["tracks"] = parse_playlist_items(results["contents"])
         results = nav(response, SINGLE_COLUMN_TAB + SECTION_LIST + [1] + CAROUSEL, True)
         if results is not None:
             album["other_versions"] = parse_content_list(results["contents"], parse_album)
@@ -779,7 +704,7 @@ class BrowsingMixin(MixinProtocol):
             raise Exception("Invalid browseId provided.")
 
         response = self._send_request("browse", {"browseId": browseId})
-        sections = nav(response, ["contents", *SECTION_LIST])
+        sections = nav(response, ["contents"] + SECTION_LIST)
         return parse_mixed_content(sections)
 
     def get_lyrics(self, browseId: str) -> Dict:
@@ -803,10 +728,10 @@ class BrowsingMixin(MixinProtocol):
 
         response = self._send_request("browse", {"browseId": browseId})
         lyrics["lyrics"] = nav(
-            response, ["contents", *SECTION_LIST_ITEM, *DESCRIPTION_SHELF, *DESCRIPTION], True
+            response, ["contents"] + SECTION_LIST_ITEM + DESCRIPTION_SHELF + DESCRIPTION, True
         )
         lyrics["source"] = nav(
-            response, ["contents", *SECTION_LIST_ITEM, *DESCRIPTION_SHELF, "footer", *RUN_TEXT], True
+            response, ["contents"] + SECTION_LIST_ITEM + DESCRIPTION_SHELF + ["footer"] + RUN_TEXT, True
         )
 
         return lyrics
@@ -894,7 +819,7 @@ class BrowsingMixin(MixinProtocol):
 
         for artist in artists:
             if artist not in taste_profile:
-                raise Exception(f"The artist, {artist}, was not present in taste!")
+                raise Exception("The artist, {}, was not present in taste!".format(artist))
             formData["selectedValues"].append(taste_profile[artist]["selectionValue"])
 
         body = {"browseId": "FEmusic_home", "formData": formData}

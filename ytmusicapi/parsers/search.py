@@ -34,21 +34,13 @@ def parse_top_result(data, search_result_types):
             search_result["videoType"] = nav(on_tap, NAVIGATION_VIDEO_TYPE)
 
     if result_type in ["song", "video", "album"]:
-        search_result["videoId"] = nav(data, ["onTap", *WATCH_VIDEO_ID], True)
-        search_result["videoType"] = nav(data, ["onTap", *NAVIGATION_VIDEO_TYPE], True)
-
         search_result["title"] = nav(data, TITLE_TEXT)
-        runs = nav(data, ["subtitle", "runs"])
+        runs = nav(data, ["subtitle", "runs"])[2:]
         song_info = parse_song_runs(runs)
         search_result.update(song_info)
 
     if result_type in ["album"]:
-        search_result["browseId"] = nav(data, TITLE + NAVIGATION_BROWSE_ID, True)
-
-    if result_type in ["playlist"]:
-        search_result["playlistId"] = nav(data, MENU_PLAYLIST_ID)
-        search_result["title"] = nav(data, TITLE_TEXT)
-        search_result["author"] = parse_song_artists_runs(nav(data, ["subtitle", "runs"])[2:])
+        search_result["browseId"] = nav(data, NAVIGATION_BROWSE_ID, True)
 
     search_result["thumbnails"] = nav(data, THUMBNAILS, True)
     return search_result
@@ -57,7 +49,7 @@ def parse_top_result(data, search_result_types):
 def parse_search_result(data, search_result_types, result_type, category):
     default_offset = (not result_type or result_type == "album") * 2
     search_result = {"category": category}
-    video_type = nav(data, [*PLAY_BUTTON, "playNavigationEndpoint", *NAVIGATION_VIDEO_TYPE], True)
+    video_type = nav(data, PLAY_BUTTON + ["playNavigationEndpoint"] + NAVIGATION_VIDEO_TYPE, True)
     if not result_type and video_type:
         result_type = "song" if video_type == "MUSIC_VIDEO_TYPE_ATV" else "video"
 
@@ -123,9 +115,9 @@ def parse_search_result(data, search_result_types, result_type, category):
                     search_result["releaseDate"] = runs[2]
                 search_result["resultType"] = "album"
 
-    if result_type in ["song", "video", "episode"]:
+    if result_type in ["song", "video"]:
         search_result["videoId"] = nav(
-            data, [*PLAY_BUTTON, "playNavigationEndpoint", "watchEndpoint", "videoId"], True
+            data, PLAY_BUTTON + ["playNavigationEndpoint", "watchEndpoint", "videoId"], True
         )
         search_result["videoType"] = video_type
 
@@ -133,24 +125,15 @@ def parse_search_result(data, search_result_types, result_type, category):
         search_result["duration"] = None
         search_result["year"] = None
         flex_item = get_flex_column_item(data, 1)
-        runs = flex_item["text"]["runs"]
+        runs = flex_item["text"]["runs"][default_offset:]
         song_info = parse_song_runs(runs)
         search_result.update(song_info)
 
-    if result_type in ["artist", "album", "playlist", "profile", "podcast"]:
+    if result_type in ["artist", "album", "playlist", "profile"]:
         search_result["browseId"] = nav(data, NAVIGATION_BROWSE_ID, True)
 
     if result_type in ["song", "album"]:
         search_result["isExplicit"] = nav(data, BADGE_LABEL, True) is not None
-
-    if result_type in ["episode"]:
-        flex_item = get_flex_column_item(data, 1)
-        has_date = int(len(nav(flex_item, TEXT_RUNS)) > 1)
-        search_result["live"] = bool(nav(data, ["badges", 0, "liveBadgeRenderer"], True))
-        if has_date:
-            search_result["date"] = nav(flex_item, TEXT_RUN_TEXT)
-
-        search_result["podcast"] = parse_id_name(nav(flex_item, ["text", "runs", has_date * 2]))
 
     search_result["thumbnails"] = nav(data, THUMBNAILS, True)
 

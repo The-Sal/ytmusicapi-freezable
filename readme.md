@@ -1,4 +1,4 @@
-# YTMusicAPI – Freezeable 
+# YTMusicAPI – Freezeable ❄️
 
 A fork of [ytmusicapi](http://github.com/sigma67/ytmusicapi) that adds the ability for the module to be frozen with no extra arguments. 
 Works with both PyInstaller and Nuitka.
